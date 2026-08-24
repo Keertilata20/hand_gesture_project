@@ -52,12 +52,13 @@ def main():
     color_name = "PURPLE"
     candidate_count = None
     candidate_frames = 0
+    fist_frames = 0
     manual_eraser = False
     window_name = "Air drawing V3 - gesture eraser"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     print("Air drawing V3 started.")
-    print("Index only: draw | closed fist: erase")
+    print("Detected index fingertip: draw | closed fist: erase")
     print("2 fingers: blue | 3: green | 4: yellow | B/G/R/Y: colors")
     print("Press E to toggle eraser, C to clear, Q to quit.")
 
@@ -89,6 +90,11 @@ def main():
                     candidate_count = count
                     candidate_frames = 1
 
+                if count == 0:
+                    fist_frames += 1
+                else:
+                    fist_frames = 0
+
                 if candidate_frames >= 8 and count in COLORS:
                     color, color_name = COLORS[count]
 
@@ -104,31 +110,28 @@ def main():
                     int(0.85 * smooth_point[1] + 0.15 * raw_point[1]),
                 )
 
-                drawing_gesture = (
-                    index_tip.y < index_pip.y
-                    and middle_tip.y > middle_pip.y
-                )
-                # Require a folded index finger for the fist eraser. This
-                # prevents a noisy finger count from blocking drawing.
-                fist_gesture = count == 0 and index_tip.y > index_pip.y
-                eraser_active = manual_eraser or fist_gesture
-                if eraser_active:
+                # A closed fist held briefly activates the gesture eraser.
+                # E remains available as a manual fallback.
+                gesture_eraser = fist_frames >= 8
+                if manual_eraser or gesture_eraser:
                     mode = "ERASER"
                     palm = hand.landmark[points.MIDDLE_FINGER_MCP]
                     eraser_point = (int(palm.x * width), int(palm.y * height))
                     cv2.circle(frame, eraser_point, 35, (255, 255, 255), 2)
                     cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
                     previous_point = None
-                elif drawing_gesture:
+                else:
                     mode = "DRAWING"
                     current_point = smooth_point
                     cv2.circle(frame, current_point, 10, (0, 255, 0), -1)
                     if previous_point is not None:
                         cv2.line(canvas, previous_point, current_point, color, 7)
-                else:
-                    previous_point = None
             else:
                 previous_point = None
+
+            # Remember the fingertip so the next frame can connect a line.
+            if current_point is not None:
+                previous_point = current_point
 
             display = frame.copy()
             mask = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY) > 0
