@@ -14,6 +14,7 @@ This project began as a simple webcam hand-tracking experiment and is being deve
 - Gesture-based color selection
 - Keyboard color-selection fallbacks
 - Canvas clearing and clean shutdown controls
+- **Save drawings to PNG files with timestamped filenames**
 
 ## Project Versions
 
@@ -23,13 +24,20 @@ This project began as a simple webcam hand-tracking experiment and is being deve
 
 Tracks the index fingertip and draws its movement on the screen.
 
+**Controls:**
+
+- Index finger raised, middle finger lowered — draw
+- `S` — save the canvas
+- `C` — clear the canvas
+- `Q` — quit
+
 ### Version 2 — Gesture Colors
 
 `air_drawing_v2.py`
 
 Adds gesture-based color selection and improved tracking stability.
 
-Current controls:
+**Controls:**
 
 - Index finger raised, middle finger lowered — draw
 - Two fingers — select blue
@@ -40,6 +48,7 @@ Current controls:
 - `G` — green
 - `R` — red
 - `Y` — yellow
+- `S` — save the canvas
 - `C` — clear the canvas
 - `Q` — quit
 
@@ -48,6 +57,22 @@ Current controls:
 `hand_tracking_test.py`
 
 Opens the webcam, detects hands, and displays MediaPipe landmarks without drawing.
+
+## Save Feature
+
+Both drawing versions support saving your canvas as a PNG image.
+
+**How to save:**
+1. Press `S` while the camera window is focused
+2. The drawing is automatically saved to the `saved/` directory
+3. Each file is timestamped as `drawing_YYYYMMDD_HHMMSS.png` for easy organization
+4. The background is automatically converted from black to white for better visibility
+
+**Example output:**
+```
+saved/drawing_20260828_153045.png
+saved/drawing_20260828_153120.png
+```
 
 ## Requirements
 
@@ -122,9 +147,9 @@ Use the project virtual environment and run commands with `python -m pip`. Keepi
 
 ### Cross-platform camera helper
 
-On Windows the scripts currently attempt to open the camera with the DirectShow flag (`cv2.CAP_DSHOW`). If the camera does not open, try changing the camera index (0 -> 1) or removing the backend flag.
+On Windows the scripts currently attempt to open the camera with the DirectShow flag (`cv2.CAP_DSHOW`). If the camera does not open, try changing the camera index (0 -> 1) or removing the backend.
 
-I added `camera_helper.py` — a small cross-platform helper that tries common OpenCV backends (DirectShow/MSMF on Windows, AVFoundation on macOS, V4L2 on Linux) and falls back to the default `cv2.VideoCapture`.
+I added `camera_helper.py` — a small cross-platform helper that tries common OpenCV backends (DirectShow/MSMF on Windows, AVFoundation on macOS, V4L2 on Linux) and falls back to the default `cv2.VideoCapture()`.
 
 Example usage:
 
@@ -152,15 +177,15 @@ Notes:
 - [x] Webcam hand-tracking test
 - [x] Basic air drawing
 - [x] Gesture-based color selection
+- [x] Save drawings as PNG files
 - [ ] Improve gesture reliability and drawing usability
 - [ ] Add an eraser gesture
 - [ ] Add a gesture-controlled user interface
-- [ ] Add saving and exporting drawings
 - [ ] Create a polished demo for sharing
 
 ## Why This Project?
 
-This project is a practical introduction to computer vision and human-computer interaction. It explores how camera input, hand landmarks, gesture recognition, and real-time graphics can work together to create a simple, fun input modality.
+This project is a practical introduction to computer vision and human-computer interaction. It explores how camera input, hand landmarks, gesture recognition, and real-time graphics can work together to create an intuitive interface.
 
 ## License
 
