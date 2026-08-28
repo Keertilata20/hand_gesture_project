@@ -1,146 +1,167 @@
-# Hand Gesture Drawing (OpenCV + MediaPipe)
+# Hand Gesture Drawing with OpenCV and MediaPipe
 
-A small real-time computer-vision project that uses a webcam to detect hand landmarks (via MediaPipe) and convert fingertip movement into digital drawings.
+A real-time computer-vision project that uses a webcam to detect hand landmarks and turn fingertip movement into digital drawings.
 
-This repository contains a compact set of scripts demonstrating hand tracking and a gesture-controlled "air drawing" application.
+This project began as a simple webcam hand-tracking experiment and is being developed step by step into a gesture-controlled drawing application.
 
-Maintainer: @Keertilata20
+## Current Features
 
----
+- Real-time webcam input using OpenCV
+- Hand landmark detection using MediaPipe
+- Index-fingertip tracking
+- Air drawing on a persistent canvas
+- Smoothed fingertip movement for more stable lines
+- Gesture-based color selection
+- Keyboard color-selection fallbacks
+- Canvas clearing and clean shutdown controls
 
-## Contents
+## Project Versions
 
-- `hand_tracking_test.py` — simple webcam demo that shows MediaPipe hand landmarks.
-- `air_drawing.py` — basic air-drawing using the index fingertip; press `C` to clear and `Q` to quit.
-- `air_drawing_v2.py` — improved drawing with smoothing and gesture-based color selection; keyboard fallbacks available.
-- `requirements.txt` — Python dependencies (OpenCV, MediaPipe).
+### Version 1 — Air Drawing
 
----
+`air_drawing.py`
 
-## Features
+Tracks the index fingertip and draws its movement on the screen.
 
-- Real-time hand landmark detection with MediaPipe
-- Index-fingertip tracking and smoothing for stable lines
-- Persistent drawing canvas blended with camera feed
-- Gesture-based color selection (in `air_drawing_v2.py`) plus keyboard shortcuts
-- Clear canvas and clean shutdown controls
+### Version 2 — Gesture Colors
 
----
+`air_drawing_v2.py`
 
-## Scripts & Controls
+Adds gesture-based color selection and improved tracking stability.
 
-### hand_tracking_test.py
+Current controls:
 
-Opens the webcam and draws MediaPipe landmarks (up to 2 hands). Use this to verify that the camera and MediaPipe are working.
-
-Run:
-
-```bash
-python hand_tracking_test.py
-```
-
-Press `Q` in the video window to quit.
-
-
-### air_drawing.py (Basic air drawing)
-
-Tracks the index fingertip and draws while you hold the pointing gesture (index finger up, middle finger down). Useful as a minimal demo.
-
-Run:
-
-```bash
-python air_drawing.py
-```
-
-Controls:
-
-- Point with index finger (index up, middle down) — draw
-- `C` — clear canvas
-- `Q` — quit
-
-
-### air_drawing_v2.py (Gesture colors)
-
-Adds gesture-based color selection and improved smoothing. Gesture selection requires a consistent gesture for several frames to avoid accidental switches.
-
-Run:
-
-```bash
-python air_drawing_v2.py
-```
-
-Gesture color mapping (requires holding the gesture for several frames):
-
-- 1 finger (index) — draw (no color change)
-- 2 fingers — blue
-- 3 fingers — green
-- 4 fingers — yellow
-- Closed fist — red
-
-Keyboard fallbacks:
-
+- Index finger raised, middle finger lowered — draw
+- Two fingers — select blue
+- Three fingers — select green
+- Four fingers — select yellow
+- Closed fist — select red
 - `B` — blue
 - `G` — green
 - `R` — red
 - `Y` — yellow
-- `C` — clear canvas
+- `C` — clear the canvas
 - `Q` — quit
 
----
+### Webcam Hand-Tracking Test
+
+`hand_tracking_test.py`
+
+Opens the webcam, detects hands, and displays MediaPipe landmarks without drawing.
 
 ## Requirements
 
-- Python 3.8+ (3.10 recommended)
+- Windows, macOS, or Linux
+- Python 3.10 recommended
 - A working webcam
-- Platforms: Windows, macOS, Linux
+- OpenCV
+- MediaPipe
 
-Install runtime dependencies:
+## Setup
 
-```bash
+Create and activate a virtual environment:
+
+```powershell
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the dependencies:
+
+```powershell
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-requirements.txt currently contains:
+## Running the Project
 
+Run the basic hand-tracking test:
+
+```powershell
+python hand_tracking_test.py
 ```
-opencv-python
-mediapipe
+
+Run the original air-drawing version:
+
+```powershell
+python air_drawing.py
+```
+
+Run the gesture-color version:
+
+```powershell
+python air_drawing_v2.py
+```
+
+Press `Q` while the camera window is focused to exit.
+
+## Troubleshooting
+
+### Webcam does not open
+
+Close other applications that may be using the webcam, such as Camera, Zoom, Teams, or WhatsApp. If necessary, change the camera index in the script:
+
+```python
+cv2.VideoCapture(0, cv2.CAP_DSHOW)
+```
+
+Try `1` instead of `0` if the computer has multiple cameras.
+
+### Hand detection is unstable
+
+Try the following:
+
+- Face a light source instead of sitting with the light behind you
+- Keep your hand 40–70 cm from the camera
+- Use a clear, uncluttered background
+- Keep your hand inside the visible camera frame
+
+### MediaPipe installation problems
+
+Use the project virtual environment and run commands with `python -m pip`. Keeping project dependencies inside `.venv` prevents conflicts with unrelated global packages.
+
+### Cross-platform camera helper
+
+On Windows the scripts currently attempt to open the camera with the DirectShow flag (`cv2.CAP_DSHOW`). If the camera does not open, try changing the camera index (0 -> 1) or removing the backend flag.
+
+I added `camera_helper.py` — a small cross-platform helper that tries common OpenCV backends (DirectShow/MSMF on Windows, AVFoundation on macOS, V4L2 on Linux) and falls back to the default `cv2.VideoCapture`.
+
+Example usage:
+
+```python
+from camera_helper import open_camera
+
+cap, backend = open_camera(0)
+if cap is None:
+    raise RuntimeError("Could not open camera — try a different index or check permissions.")
+print("Using backend:", backend)
+
+# Then use cap as you would a normal cv2.VideoCapture:
+ok, frame = cap.read()
+...
+cap.release()
 ```
 
 Notes:
 
-- On Windows the scripts open the camera with the DirectShow flag (`cv2.VideoCapture(0, cv2.CAP_DSHOW)`). If your webcam does not open, try changing the camera index (0 -> 1) or remove the `cv2.CAP_DSHOW` flag.
+- The helper tries sensible backends depending on the OS and reads a few frames to confirm the camera is functional.
+- If you want me to update the drawing scripts to use `camera_helper.open_camera(...)`, I've already applied that change in the repository.
 
----
+## Roadmap
 
-## Troubleshooting
+- [x] Webcam hand-tracking test
+- [x] Basic air drawing
+- [x] Gesture-based color selection
+- [ ] Improve gesture reliability and drawing usability
+- [ ] Add an eraser gesture
+- [ ] Add a gesture-controlled user interface
+- [ ] Add saving and exporting drawings
+- [ ] Create a polished demo for sharing
 
-- Webcam does not open:
-  - Close other apps that may use the camera (Camera, Zoom, Teams, etc.).
-  - Try a different camera index in the scripts (replace the 0 with 1).
-  - On some systems the `cv2.CAP_DSHOW` flag can help (Windows). On others it may be unnecessary.
+## Why This Project?
 
-- Hand detection is unstable:
-  - Face a light source (avoid strong backlighting).
-  - Keep your hand roughly 40–70 cm from the camera.
-  - Use a clear background and keep the hand inside the camera frame.
-
-- MediaPipe installation issues:
-  - Use a virtual environment and install with `python -m pip install -r requirements.txt` to avoid package conflicts.
-
----
-
-## Roadmap / Ideas
-
-- Improve gesture reliability and drawing usability
-- Add an eraser gesture and undo
-- Add a simple on-screen gesture-controlled UI
-- Save/export drawings to image files
-- Create a polished demo and packaging for easier sharing
-
----
+This project is a practical introduction to computer vision and human-computer interaction. It explores how camera input, hand landmarks, gesture recognition, and real-time graphics can work together to create a simple, fun input modality.
 
 ## License
 
-This project is provided for learning and experimentation. No formal license is specified in the repository — add a LICENSE file (MIT, Apache-2.0, etc.) if you want to publish or share the code for reuse.
+This project is intended for learning and experimentation. A formal license can be added when the project is ready for public reuse.
