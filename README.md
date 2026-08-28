@@ -1,140 +1,146 @@
-# Hand Gesture Drawing with OpenCV and MediaPipe
+# Hand Gesture Drawing (OpenCV + MediaPipe)
 
-A real-time computer-vision project that uses a webcam to detect hand landmarks and turn fingertip movement into digital drawings.
+A small real-time computer-vision project that uses a webcam to detect hand landmarks (via MediaPipe) and convert fingertip movement into digital drawings.
 
-This project began as a simple webcam hand-tracking experiment and is being developed step by step into a gesture-controlled drawing application.
+This repository contains a compact set of scripts demonstrating hand tracking and a gesture-controlled "air drawing" application.
 
-## Current Features
+Maintainer: @Keertilata20
 
-- Real-time webcam input using OpenCV
-- Hand landmark detection using MediaPipe
-- Index-fingertip tracking
-- Air drawing on a persistent canvas
-- Smoothed fingertip movement for more stable lines
-- Gesture-based color selection
-- Keyboard color-selection fallbacks
-- Canvas clearing and clean shutdown controls
+---
 
-## Project Versions
+## Contents
 
-### Version 1 — Air Drawing
+- `hand_tracking_test.py` — simple webcam demo that shows MediaPipe hand landmarks.
+- `air_drawing.py` — basic air-drawing using the index fingertip; press `C` to clear and `Q` to quit.
+- `air_drawing_v2.py` — improved drawing with smoothing and gesture-based color selection; keyboard fallbacks available.
+- `requirements.txt` — Python dependencies (OpenCV, MediaPipe).
 
-`air_drawing.py`
+---
 
-Tracks the index fingertip and draws its movement on the screen.
+## Features
 
-### Version 2 — Gesture Colors
+- Real-time hand landmark detection with MediaPipe
+- Index-fingertip tracking and smoothing for stable lines
+- Persistent drawing canvas blended with camera feed
+- Gesture-based color selection (in `air_drawing_v2.py`) plus keyboard shortcuts
+- Clear canvas and clean shutdown controls
 
-`air_drawing_v2.py`
+---
 
-Adds gesture-based color selection and improved tracking stability.
+## Scripts & Controls
 
-Current controls:
+### hand_tracking_test.py
 
-- Index finger raised, middle finger lowered — draw
-- Two fingers — select blue
-- Three fingers — select green
-- Four fingers — select yellow
-- Closed fist — select red
+Opens the webcam and draws MediaPipe landmarks (up to 2 hands). Use this to verify that the camera and MediaPipe are working.
+
+Run:
+
+```bash
+python hand_tracking_test.py
+```
+
+Press `Q` in the video window to quit.
+
+
+### air_drawing.py (Basic air drawing)
+
+Tracks the index fingertip and draws while you hold the pointing gesture (index finger up, middle finger down). Useful as a minimal demo.
+
+Run:
+
+```bash
+python air_drawing.py
+```
+
+Controls:
+
+- Point with index finger (index up, middle down) — draw
+- `C` — clear canvas
+- `Q` — quit
+
+
+### air_drawing_v2.py (Gesture colors)
+
+Adds gesture-based color selection and improved smoothing. Gesture selection requires a consistent gesture for several frames to avoid accidental switches.
+
+Run:
+
+```bash
+python air_drawing_v2.py
+```
+
+Gesture color mapping (requires holding the gesture for several frames):
+
+- 1 finger (index) — draw (no color change)
+- 2 fingers — blue
+- 3 fingers — green
+- 4 fingers — yellow
+- Closed fist — red
+
+Keyboard fallbacks:
+
 - `B` — blue
 - `G` — green
 - `R` — red
 - `Y` — yellow
-- `C` — clear the canvas
+- `C` — clear canvas
 - `Q` — quit
 
-### Webcam Hand-Tracking Test
-
-`hand_tracking_test.py`
-
-Opens the webcam, detects hands, and displays MediaPipe landmarks without drawing.
+---
 
 ## Requirements
 
-- Windows, macOS, or Linux
-- Python 3.10 recommended
+- Python 3.8+ (3.10 recommended)
 - A working webcam
-- OpenCV
-- MediaPipe
+- Platforms: Windows, macOS, Linux
 
-## Setup
+Install runtime dependencies:
 
-Create and activate a virtual environment:
-
-```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-Install the dependencies:
-
-```powershell
+```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## Running the Project
+requirements.txt currently contains:
 
-Run the basic hand-tracking test:
-
-```powershell
-python hand_tracking_test.py
+```
+opencv-python
+mediapipe
 ```
 
-Run the original air-drawing version:
+Notes:
 
-```powershell
-python air_drawing.py
-```
+- On Windows the scripts open the camera with the DirectShow flag (`cv2.VideoCapture(0, cv2.CAP_DSHOW)`). If your webcam does not open, try changing the camera index (0 -> 1) or remove the `cv2.CAP_DSHOW` flag.
 
-Run the gesture-color version:
-
-```powershell
-python air_drawing_v2.py
-```
-
-Press `Q` while the camera window is focused to exit.
+---
 
 ## Troubleshooting
 
-### Webcam does not open
+- Webcam does not open:
+  - Close other apps that may use the camera (Camera, Zoom, Teams, etc.).
+  - Try a different camera index in the scripts (replace the 0 with 1).
+  - On some systems the `cv2.CAP_DSHOW` flag can help (Windows). On others it may be unnecessary.
 
-Close other applications that may be using the webcam, such as Camera, Zoom, Teams, or WhatsApp. If necessary, change the camera index in the script:
+- Hand detection is unstable:
+  - Face a light source (avoid strong backlighting).
+  - Keep your hand roughly 40–70 cm from the camera.
+  - Use a clear background and keep the hand inside the camera frame.
 
-```python
-cv2.VideoCapture(0, cv2.CAP_DSHOW)
-```
+- MediaPipe installation issues:
+  - Use a virtual environment and install with `python -m pip install -r requirements.txt` to avoid package conflicts.
 
-Try `1` instead of `0` if the computer has multiple cameras.
+---
 
-### Hand detection is unstable
+## Roadmap / Ideas
 
-Try the following:
+- Improve gesture reliability and drawing usability
+- Add an eraser gesture and undo
+- Add a simple on-screen gesture-controlled UI
+- Save/export drawings to image files
+- Create a polished demo and packaging for easier sharing
 
-- Face a light source instead of sitting with the light behind you
-- Keep your hand 40–70 cm from the camera
-- Use a clear, uncluttered background
-- Keep your hand inside the visible camera frame
-
-### MediaPipe installation problems
-
-Use the project virtual environment and run commands with `python -m pip`. Keeping project dependencies inside `.venv` prevents conflicts with unrelated global packages.
-
-## Roadmap
-
-- [x] Webcam hand-tracking test
-- [x] Basic air drawing
-- [x] Gesture-based color selection
-- [ ] Improve gesture reliability and drawing usability
-- [ ] Add an eraser gesture
-- [ ] Add a gesture-controlled user interface
-- [ ] Add saving and exporting drawings
-- [ ] Create a polished demo for sharing
-
-## Why This Project?
-
-This project is a practical introduction to computer vision and human-computer interaction. It explores how camera input, hand landmarks, gesture recognition, and real-time graphics can work together to create a natural interface.
+---
 
 ## License
 
-This project is intended for learning and experimentation. A formal license can be added when the project is ready for public reuse.
+This project is provided for learning and experimentation. No formal license is specified in the repository — add a LICENSE file (MIT, Apache-2.0, etc.) if you want to publish or share the code for reuse.
