@@ -1,8 +1,12 @@
+import os
 import math
+from datetime import datetime
 
 import cv2
 import mediapipe as mp
 import numpy as np
+
+from camera_helper import open_camera
 
 
 COLORS = {
@@ -34,9 +38,10 @@ def raised_fingers(hand):
 
 
 def main():
-    camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    if not camera.isOpened():
-        raise RuntimeError("Could not open webcam. Try changing 0 to 1 in VideoCapture.")
+    cap, backend = open_camera(0)
+    if cap is None:
+        raise RuntimeError("Could not open webcam. Try changing 0 to 1 or check permissions.")
+    camera = cap
 
     hands = mp.solutions.hands.Hands(
         static_image_mode=False,
@@ -60,7 +65,7 @@ def main():
     print("Air drawing V3 started.")
     print("Detected index fingertip: draw | closed fist: erase")
     print("2 fingers: blue | 3: green | 4: yellow | B/G/R/Y: colors")
-    print("Press E to toggle eraser, C to clear, Q to quit.")
+    print("Press E to toggle eraser, C to clear, S to save, Q to quit.")
 
     try:
         while True:
@@ -154,6 +159,22 @@ def main():
             elif key == ord("e"):
                 manual_eraser = not manual_eraser
                 previous_point = None
+            elif key == ord("s"):
+                # Save the canvas as a PNG with a timestamped filename
+                if canvas is None:
+                    print("Nothing to save (canvas is empty).")
+                else:
+                    out_dir = "saved"
+                    os.makedirs(out_dir, exist_ok=True)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = os.path.join(out_dir, f"drawing_{timestamp}.png")
+                    # Convert empty (black) background to white for better visibility
+                    out = canvas.copy()
+                    gray = cv2.cvtColor(out, cv2.COLOR_BGR2GRAY)
+                    mask_empty = gray == 0
+                    out[mask_empty] = (255, 255, 255)
+                    cv2.imwrite(filename, out)
+                    print(f"Saved canvas to {filename}")
             elif key == ord("c"):
                 canvas[:] = 0
                 previous_point = None
