@@ -11,10 +11,10 @@ from camera_helper import open_camera
 
 COLORS = {
     "P": ((255, 0, 255), "PURPLE"),
-    0: ((0, 0, 255), "RED"),
-    2: ((255, 0, 0), "BLUE"),
-    3: ((0, 255, 0), "GREEN"),
-    4: ((0, 255, 255), "YELLOW"),
+    "R": ((0, 0, 255), "RED"),
+    "B": ((255, 0, 0), "BLUE"),
+    "G": ((0, 255, 0), "GREEN"),
+    "Y": ((0, 255, 255), "YELLOW"),
 }
 
 
@@ -38,54 +38,11 @@ def draw_music_visualizer(image, energy, phase):
         cv2.line(image, inner, outer, (255, 0, 180), 3)
 
 
-def raised_fingers(hand):
-    points = mp.solutions.hands.HandLandmark
-
-    def distance(a, b):
-        return math.hypot(a.x - b.x, a.y - b.y)
-
-    def angle(a, b, c):
-        """Return the angle ABC in degrees."""
-        ba = (a.x - b.x, a.y - b.y)
-        bc = (c.x - b.x, c.y - b.y)
-        denominator = math.hypot(*ba) * math.hypot(*bc)
-        if denominator == 0:
-            return 0.0
-        cosine = max(-1.0, min(1.0, (ba[0] * bc[0] + ba[1] * bc[1]) / denominator))
-        return math.degrees(math.acos(cosine))
-
-    pairs = [
-        (points.INDEX_FINGER_TIP, points.INDEX_FINGER_PIP, points.INDEX_FINGER_MCP),
-        (points.MIDDLE_FINGER_TIP, points.MIDDLE_FINGER_PIP, points.MIDDLE_FINGER_MCP),
-        (points.RING_FINGER_TIP, points.RING_FINGER_PIP, points.RING_FINGER_MCP),
-        (points.PINKY_TIP, points.PINKY_PIP, points.PINKY_MCP),
-    ]
-    states = []
-    for tip, pip, mcp in pairs:
-        tip_point = hand.landmark[tip]
-        pip_point = hand.landmark[pip]
-        mcp_point = hand.landmark[mcp]
-        straight = angle(mcp_point, pip_point, tip_point) > 145
-        extended = distance(tip_point, mcp_point) > distance(pip_point, mcp_point) * 1.05
-        states.append(straight and extended)
-    return sum(states)
-
-
 def drawing_pose(hand):
-    """Detect index-up/middle-down without depending on the other fingers."""
+    """Detect the simple, reliable drawing pose: index up, middle down."""
     points = mp.solutions.hands.HandLandmark
-
-    def distance(a, b):
-        return math.hypot(a.x - b.x, a.y - b.y)
-
-    def is_extended(tip, pip, mcp):
-        return distance(hand.landmark[tip], hand.landmark[mcp]) > \
-            distance(hand.landmark[pip], hand.landmark[mcp]) * 1.05
-
-    index_up = is_extended(points.INDEX_FINGER_TIP, points.INDEX_FINGER_PIP,
-                           points.INDEX_FINGER_MCP)
-    middle_down = not is_extended(points.MIDDLE_FINGER_TIP, points.MIDDLE_FINGER_PIP,
-                                  points.MIDDLE_FINGER_MCP)
+    index_up = hand.landmark[points.INDEX_FINGER_TIP].y < hand.landmark[points.INDEX_FINGER_PIP].y
+    middle_down = hand.landmark[points.MIDDLE_FINGER_TIP].y > hand.landmark[points.MIDDLE_FINGER_PIP].y
     return index_up and middle_down
 
 
@@ -111,9 +68,6 @@ def main():
     smooth_point = None
     color = COLORS["P"][0]
     color_name = COLORS["P"][1]
-    candidate_count = None
-    candidate_frames = 0
-    fist_frames = 0
     manual_eraser = False
     history = []
     max_history = 20
@@ -127,9 +81,8 @@ def main():
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     print("Air drawing V3 started.")
-    print("Index only: draw | 2/3/4 fingers: choose blue/green/yellow")
-    print("Closed fist held briefly: erase | E: toggle eraser")
-    print("B/G/R/Y/P: colors | U: undo | S: save | C: clear | H: help | Q: quit")
+    print("Index up + middle folded: draw | E: toggle eraser")
+    print("B/G/R/Y/P: choose color | U: undo | S: save | C: clear | H: help | Q: quit")
     print(f"Camera backend: {backend}")
 
     try:
@@ -148,28 +101,10 @@ def main():
             result = hands.process(rgb)
             current_point = None
             mode = "READY"
-            finger_count = None
 
             if result.multi_hand_landmarks:
                 hand = result.multi_hand_landmarks[0]
                 drawer.draw_landmarks(frame, hand, mp.solutions.hands.HAND_CONNECTIONS)
-                count = raised_fingers(hand)
-                finger_count = count
-
-                if count == candidate_count:
-                    candidate_frames += 1
-                else:
-                    candidate_count = count
-                    candidate_frames = 1
-
-                if count == 0:
-                    fist_frames += 1
-                else:
-                    fist_frames = 0
-
-                if candidate_frames >= 8 and count in COLORS:
-                    color, color_name = COLORS[count]
-
                 points = mp.solutions.hands.HandLandmark
                 index_tip = hand.landmark[points.INDEX_FINGER_TIP]
                 height, width = frame.shape[:2]
@@ -179,13 +114,7 @@ def main():
                     int(0.65 * smooth_point[1] + 0.35 * raw_point[1]),
                 )
 
-                # A closed fist held briefly activates the gesture eraser.
-                # E remains available as a manual fallback.
-                gesture_eraser = fist_frames >= 8
-                selecting_color = count in (2, 3, 4)
-                holding_fist = count == 0 and not gesture_eraser
-
-                if manual_eraser or gesture_eraser:
+                if manual_eraser:
                     mode = "ERASER"
                     if last_action != "ERASER":
                         history.append(canvas.copy())
@@ -196,14 +125,6 @@ def main():
                     cv2.circle(frame, eraser_point, 35, (255, 255, 255), 2)
                     cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
                     previous_point = None
-                elif selecting_color:
-                    mode = f"SELECT {color_name if candidate_frames < 8 else COLORS[count][1]}"
-                    previous_point = None
-                    last_action = None
-                elif holding_fist:
-                    mode = f"HOLD FIST {fist_frames}/8"
-                    previous_point = None
-                    last_action = None
                 elif drawing_pose(hand):
                     mode = "DRAWING"
                     if last_action != "DRAWING":
@@ -256,8 +177,8 @@ def main():
                               (min(width, 650), height), (35, 35, 35), -1)
                 display = cv2.addWeighted(overlay, 0.82, display, 0.18, 0)
                 controls = [
-                    "INDEX: DRAW    2/3/4: COLOR",
-                    "FIST: ERASE    E: ERASE TOGGLE",
+                    "INDEX UP + MIDDLE FOLDED: DRAW",
+                    "E: ERASE TOGGLE",
                     "B/G/R/Y/P: COLOR   U: UNDO",
                     "S: SAVE   C: CLEAR   H: HIDE HELP   Q: QUIT",
                 ]
@@ -265,8 +186,7 @@ def main():
                     cv2.putText(display, help_text, (15, height - 120 + row * 27),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1)
             else:
-                detected = "NO HAND" if finger_count is None else f"{finger_count} FINGERS"
-                status = f"{mode} | {detected} | {color_name} | ENERGY {int(movement_energy * 100):02d}% | H: HELP | Q: QUIT"
+                status = f"{mode} | {color_name} | ENERGY {int(movement_energy * 100):02d}% | H: HELP | Q: QUIT"
                 cv2.rectangle(display, (0, height - 34), (min(width, 430), height),
                               (25, 25, 25), -1)
                 cv2.putText(display, status, (10, height - 11),
@@ -275,13 +195,13 @@ def main():
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("b"):
-                color, color_name = COLORS[2]
+                color, color_name = COLORS["B"]
             elif key == ord("g"):
-                color, color_name = COLORS[3]
+                color, color_name = COLORS["G"]
             elif key == ord("r"):
-                color, color_name = COLORS[0]
+                color, color_name = COLORS["R"]
             elif key == ord("y"):
-                color, color_name = COLORS[4]
+                color, color_name = COLORS["Y"]
             elif key == ord("p"):
                 color, color_name = COLORS["P"]
             elif key == ord("e"):

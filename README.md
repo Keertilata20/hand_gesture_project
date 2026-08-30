@@ -48,11 +48,8 @@ Legacy V2 controls:
 
 V3 controls:
 
-- Index finger only — draw
-- Two fingers — select blue
-- Three fingers — select green
-- Four fingers — select yellow
-- Closed fist held briefly — erase
+- Index finger up with middle finger folded — draw
+- Color selection is keyboard-controlled in V3 because finger counting is unreliable with low-quality camera feeds.
 - `E` — toggle manual eraser
 - `B` / `G` / `R` / `Y` / `P` — select blue / green / red / yellow / purple
 - `U` — undo the last drawing, erasing, or clear action
