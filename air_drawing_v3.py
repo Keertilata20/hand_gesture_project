@@ -1,5 +1,6 @@
 import math
 from datetime import datetime
+import time
 
 import cv2
 import mediapipe as mp
@@ -15,6 +16,38 @@ COLORS = {
     3: ((0, 255, 0), "GREEN"),
     4: ((0, 255, 255), "YELLOW"),
 }
+
+
+def enhance_frame(frame):
+    """Lift shadows and add modest sharpening for difficult webcam images."""
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    lightness, a_channel, b_channel = cv2.split(lab)
+    lightness = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(lightness)
+    enhanced = cv2.cvtColor(
+        cv2.merge((lightness, a_channel, b_channel)), cv2.COLOR_LAB2BGR
+    )
+    softened = cv2.GaussianBlur(enhanced, (0, 0), 2.0)
+    return cv2.addWeighted(enhanced, 1.2, softened, -0.2, 0)
+
+
+def draw_music_visualizer(image, energy, phase):
+    """Draw a lightweight music-energy visualization driven by hand movement."""
+    height, width = image.shape[:2]
+    center = (width - 105, height - 82)
+    base_radius = 28 + int(energy * 18)
+    pulse = 0.5 + 0.5 * math.sin(phase)
+    cv2.circle(image, center, base_radius + int(pulse * 8), (255, 0, 180), 2)
+    cv2.circle(image, center, 5 + int(energy * 8), (255, 255, 255), -1)
+
+    for index in range(16):
+        angle = (2 * math.pi * index / 16) - math.pi / 2
+        wave = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(phase * 1.7 + index * 0.8))
+        bar = 8 + int(energy * 42 * wave)
+        inner = (int(center[0] + math.cos(angle) * 42),
+                 int(center[1] + math.sin(angle) * 42))
+        outer = (int(center[0] + math.cos(angle) * (42 + bar)),
+                 int(center[1] + math.sin(angle) * (42 + bar)))
+        cv2.line(image, inner, outer, (255, 0, 180), 3)
 
 
 def raised_fingers(hand):
@@ -44,11 +77,13 @@ def main():
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     hands = mp.solutions.hands.Hands(
-        static_image_mode=False,
+        # Re-detect every frame instead of relying on tracking between frames.
+        # This is more tolerant of a soft or unstable webcam feed.
+        static_image_mode=True,
         max_num_hands=1,
         model_complexity=1,
-        min_detection_confidence=0.45,
-        min_tracking_confidence=0.45,
+        min_detection_confidence=0.25,
+        min_tracking_confidence=0.25,
     )
     drawer = mp.solutions.drawing_utils
     canvas = None
@@ -64,6 +99,9 @@ def main():
     max_history = 20
     last_action = None
     show_help = False
+    movement_energy = 0.0
+    visualizer_phase = 0.0
+    last_tick = time.monotonic()
     window_name = "Air drawing V3 - gesture eraser"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -80,7 +118,7 @@ def main():
             if not ok:
                 break
 
-            frame = cv2.flip(frame, 1)
+            frame = enhance_frame(cv2.flip(frame, 1))
             if canvas is None:
                 canvas = np.zeros_like(frame)
                 height, width = frame.shape[:2]
@@ -153,6 +191,13 @@ def main():
                     current_point = smooth_point
                     cv2.circle(frame, current_point, 10, (0, 255, 0), -1)
                     if previous_point is not None:
+                        distance_moved = math.hypot(
+                            current_point[0] - previous_point[0],
+                            current_point[1] - previous_point[1],
+                        )
+                        movement_energy = min(
+                            1.0, 0.8 * movement_energy + 0.2 * distance_moved / 35.0
+                        )
                         cv2.line(canvas, previous_point, current_point, color, 7)
                 else:
                     mode = "READY"
@@ -162,15 +207,25 @@ def main():
                 previous_point = None
                 last_action = None
                 mode = "NO HAND"
+                movement_energy *= 0.9
 
             # Remember the fingertip so the next frame can connect a line.
             if current_point is not None:
                 previous_point = current_point
 
+            now = time.monotonic()
+            visualizer_phase += (now - last_tick) * (2.0 + movement_energy * 8.0)
+            last_tick = now
+
             display = frame.copy()
             mask = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY) > 0
-            blended = cv2.addWeighted(frame, 0.35, canvas, 0.65, 0)
-            display[mask] = blended[mask]
+            glow = cv2.GaussianBlur(canvas, (0, 0), 18)
+            glow_mask = cv2.cvtColor(glow, cv2.COLOR_BGR2GRAY) > 2
+            glow_blended = cv2.addWeighted(frame, 0.35, glow, 0.9, 0)
+            display[glow_mask] = glow_blended[glow_mask]
+            core_blended = cv2.addWeighted(display, 0.25, canvas, 0.95, 0)
+            display[mask] = core_blended[mask]
+            draw_music_visualizer(display, movement_energy, visualizer_phase)
             height, width = display.shape[:2]
             if show_help:
                 panel_height = 150
@@ -188,7 +243,7 @@ def main():
                     cv2.putText(display, help_text, (15, height - 120 + row * 27),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1)
             else:
-                status = f"{mode} | {color_name} | H: HELP | Q: QUIT"
+                status = f"{mode} | {color_name} | ENERGY {int(movement_energy * 100):02d}% | H: HELP | Q: QUIT"
                 cv2.rectangle(display, (0, height - 34), (min(width, 430), height),
                               (25, 25, 25), -1)
                 cv2.putText(display, status, (10, height - 11),
@@ -218,6 +273,7 @@ def main():
                 previous_point = None
                 smooth_point = None
                 last_action = None
+                movement_energy = 0.0
             elif key == ord("s"):
                 filename = f"drawing_{datetime.now():%Y%m%d_%H%M%S}.png"
                 if cv2.imwrite(filename, canvas):
@@ -229,6 +285,7 @@ def main():
                 previous_point = None
                 smooth_point = None
                 last_action = None
+                movement_energy = 0.0
             elif key == ord("q"):
                 break
     finally:

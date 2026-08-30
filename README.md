@@ -13,6 +13,9 @@ This project began as a simple webcam hand-tracking experiment and is being deve
 - Smoothed fingertip movement for more stable lines
 - Gesture-based color selection
 - Gesture-based erasing
+- Neon air-graffiti trails
+- Movement-driven music-energy visualization
+- Webcam brightness and sharpening enhancement
 - Keyboard color-selection fallbacks
 - Canvas clearing, saving, undo, and clean shutdown controls
 
@@ -60,6 +63,8 @@ V3 controls:
 - `Q` — quit
 
 The V3 application is the recommended version for demonstrations and daily use.
+
+V3 currently provides a visual music layer: faster hand movement increases the energy of the animated visualizer. Audio generation can be added as a later phase once the interaction is stable.
 
 ### Webcam Hand-Tracking Test
 
