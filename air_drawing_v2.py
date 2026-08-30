@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -35,7 +37,8 @@ def raised_fingers(hand):
 
 
 def main():
-    camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    camera = (cv2.VideoCapture(0, cv2.CAP_DSHOW)
+              if os.name == "nt" else cv2.VideoCapture(0))
     if not camera.isOpened():
         raise RuntimeError("Could not open webcam. Try changing 0 to 1 in VideoCapture.")
 

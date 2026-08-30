@@ -12,8 +12,9 @@ This project began as a simple webcam hand-tracking experiment and is being deve
 - Air drawing on a persistent canvas
 - Smoothed fingertip movement for more stable lines
 - Gesture-based color selection
+- Gesture-based erasing
 - Keyboard color-selection fallbacks
-- Canvas clearing and clean shutdown controls
+- Canvas clearing, saving, undo, and clean shutdown controls
 
 ## Project Versions
 
@@ -23,13 +24,13 @@ This project began as a simple webcam hand-tracking experiment and is being deve
 
 Tracks the index fingertip and draws its movement on the screen.
 
-### Version 2 — Gesture Colors
+### Version 2 — Gesture Colors (Legacy)
 
 `air_drawing_v2.py`
 
 Adds gesture-based color selection and improved tracking stability.
 
-Current controls:
+Legacy V2 controls:
 
 - Index finger raised, middle finger lowered — draw
 - Two fingers — select blue
@@ -42,6 +43,22 @@ Current controls:
 - `Y` — yellow
 - `C` — clear the canvas
 - `Q` — quit
+
+V3 controls:
+
+- Index finger only — draw
+- Two fingers — select blue
+- Three fingers — select green
+- Four fingers — select yellow
+- Closed fist held briefly — erase
+- `E` — toggle manual eraser
+- `B` / `G` / `R` / `Y` / `P` — select blue / green / red / yellow / purple
+- `U` — undo the last drawing, erasing, or clear action
+- `S` — save the drawing as a PNG in the project folder
+- `C` — clear the canvas
+- `Q` — quit
+
+The V3 application is the recommended version for demonstrations and daily use.
 
 ### Webcam Hand-Tracking Test
 
@@ -87,10 +104,16 @@ Run the original air-drawing version:
 python air_drawing.py
 ```
 
-Run the gesture-color version:
+Run the legacy gesture-color version:
 
 ```powershell
 python air_drawing_v2.py
+```
+
+Run the latest version with gesture erasing, undo, and saving:
+
+```powershell
+python air_drawing_v3.py
 ```
 
 Press `Q` while the camera window is focused to exit.
@@ -125,10 +148,11 @@ Use the project virtual environment and run commands with `python -m pip`. Keepi
 - [x] Webcam hand-tracking test
 - [x] Basic air drawing
 - [x] Gesture-based color selection
-- [ ] Improve gesture reliability and drawing usability
-- [ ] Add an eraser gesture
-- [ ] Add a gesture-controlled user interface
-- [ ] Add saving and exporting drawings
+- [x] Gesture-based erasing
+- [x] Improve gesture reliability and drawing usability
+- [x] Add an on-screen user interface
+- [x] Add saving and exporting drawings
+- [x] Add undo support
 - [ ] Create a polished demo for sharing
 
 ## Why This Project?

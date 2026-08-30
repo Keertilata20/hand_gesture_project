@@ -1,4 +1,6 @@
 import math
+import os
+from datetime import datetime
 
 import cv2
 import mediapipe as mp
@@ -6,6 +8,7 @@ import numpy as np
 
 
 COLORS = {
+    "P": ((255, 0, 255), "PURPLE"),
     0: ((0, 0, 255), "RED"),
     2: ((255, 0, 0), "BLUE"),
     3: ((0, 255, 0), "GREEN"),
@@ -34,7 +37,8 @@ def raised_fingers(hand):
 
 
 def main():
-    camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    camera = (cv2.VideoCapture(0, cv2.CAP_DSHOW)
+              if os.name == "nt" else cv2.VideoCapture(0))
     if not camera.isOpened():
         raise RuntimeError("Could not open webcam. Try changing 0 to 1 in VideoCapture.")
 
@@ -48,19 +52,22 @@ def main():
     canvas = None
     previous_point = None
     smooth_point = None
-    color = (255, 0, 255)
-    color_name = "PURPLE"
+    color = COLORS["P"][0]
+    color_name = COLORS["P"][1]
     candidate_count = None
     candidate_frames = 0
     fist_frames = 0
     manual_eraser = False
+    history = []
+    max_history = 20
+    last_action = None
     window_name = "Air drawing V3 - gesture eraser"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     print("Air drawing V3 started.")
-    print("Detected index fingertip: draw | closed fist: erase")
-    print("2 fingers: blue | 3: green | 4: yellow | B/G/R/Y: colors")
-    print("Press E to toggle eraser, C to clear, Q to quit.")
+    print("Index only: draw | 2/3/4 fingers: choose blue/green/yellow")
+    print("Closed fist held briefly: erase | E: toggle eraser")
+    print("B/G/R/Y/P: colors | U: undo | S: save | C: clear | Q: quit")
 
     try:
         while True:
@@ -100,9 +107,6 @@ def main():
 
                 points = mp.solutions.hands.HandLandmark
                 index_tip = hand.landmark[points.INDEX_FINGER_TIP]
-                index_pip = hand.landmark[points.INDEX_FINGER_PIP]
-                middle_tip = hand.landmark[points.MIDDLE_FINGER_TIP]
-                middle_pip = hand.landmark[points.MIDDLE_FINGER_PIP]
                 height, width = frame.shape[:2]
                 raw_point = (int(index_tip.x * width), int(index_tip.y * height))
                 smooth_point = raw_point if smooth_point is None else (
@@ -113,21 +117,45 @@ def main():
                 # A closed fist held briefly activates the gesture eraser.
                 # E remains available as a manual fallback.
                 gesture_eraser = fist_frames >= 8
+                selecting_color = count in (2, 3, 4)
+                holding_fist = count == 0 and not gesture_eraser
+
                 if manual_eraser or gesture_eraser:
                     mode = "ERASER"
+                    if last_action != "ERASER":
+                        history.append(canvas.copy())
+                        history = history[-max_history:]
+                    last_action = "ERASER"
                     palm = hand.landmark[points.MIDDLE_FINGER_MCP]
                     eraser_point = (int(palm.x * width), int(palm.y * height))
                     cv2.circle(frame, eraser_point, 35, (255, 255, 255), 2)
                     cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
                     previous_point = None
-                else:
+                elif selecting_color:
+                    mode = f"SELECT {color_name if candidate_frames < 8 else COLORS[count][1]}"
+                    previous_point = None
+                    last_action = None
+                elif holding_fist:
+                    mode = f"HOLD FIST {fist_frames}/8"
+                    previous_point = None
+                    last_action = None
+                elif count == 1:
                     mode = "DRAWING"
+                    if last_action != "DRAWING":
+                        history.append(canvas.copy())
+                        history = history[-max_history:]
+                    last_action = "DRAWING"
                     current_point = smooth_point
                     cv2.circle(frame, current_point, 10, (0, 255, 0), -1)
                     if previous_point is not None:
                         cv2.line(canvas, previous_point, current_point, color, 7)
+                else:
+                    mode = "READY"
+                    previous_point = None
+                    last_action = None
             else:
                 previous_point = None
+                last_action = None
 
             # Remember the fingertip so the next frame can connect a line.
             if current_point is not None:
@@ -137,9 +165,18 @@ def main():
             mask = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY) > 0
             blended = cv2.addWeighted(frame, 0.35, canvas, 0.65, 0)
             display[mask] = blended[mask]
-            cv2.rectangle(display, (0, 0), (430, 52), (35, 35, 35), -1)
+            cv2.rectangle(display, (0, 0), (520, 155), (35, 35, 35), -1)
             cv2.putText(display, f"{mode} | COLOR: {color_name}", (15, 35),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
+            controls = [
+                "INDEX: DRAW    2/3/4: COLOR",
+                "FIST: ERASE    E: ERASE TOGGLE",
+                "B/G/R/Y/P: COLOR   U: UNDO",
+                "S: SAVE   C: CLEAR   Q: QUIT",
+            ]
+            for row, text in enumerate(controls, start=1):
+                cv2.putText(display, text, (15, 35 + row * 27),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1)
             cv2.imshow(window_name, display)
 
             key = cv2.waitKey(1) & 0xFF
@@ -151,13 +188,29 @@ def main():
                 color, color_name = COLORS[0]
             elif key == ord("y"):
                 color, color_name = COLORS[4]
+            elif key == ord("p"):
+                color, color_name = COLORS["P"]
             elif key == ord("e"):
                 manual_eraser = not manual_eraser
                 previous_point = None
+                last_action = None
+            elif key == ord("u"):
+                if history:
+                    canvas[:] = history.pop()
+                previous_point = None
+                smooth_point = None
+                last_action = None
+            elif key == ord("s"):
+                filename = f"drawing_{datetime.now():%Y%m%d_%H%M%S}.png"
+                if cv2.imwrite(filename, canvas):
+                    print(f"Saved {filename}")
             elif key == ord("c"):
+                history.append(canvas.copy())
+                history = history[-max_history:]
                 canvas[:] = 0
                 previous_point = None
                 smooth_point = None
+                last_action = None
             elif key == ord("q"):
                 break
     finally:
