@@ -22,23 +22,25 @@ TOOLBAR = ["R", "B", "G", "Y", "P", "E"]
 
 def toolbar_hit(point):
     """Return the toolbar tool under a point, or None."""
-    if point is None or point[1] > 70:
+    if point is None or point[0] > 105:
         return None
-    button_width = 58
-    gap = 6
-    index = point[0] // (button_width + gap)
-    within_button = point[0] % (button_width + gap) < button_width
+    button_height = 64
+    gap = 7
+    index = (point[1] - 10) // (button_height + gap)
+    within_button = (point[1] - 10) % (button_height + gap) < button_height
     if within_button and 0 <= index < len(TOOLBAR):
         return TOOLBAR[index]
     return None
 
 
 def draw_toolbar(image, selected_tool, hover_tool):
-    """Draw a compact finger-selectable toolbar at the top of the screen."""
-    button_width = 58
-    gap = 6
+    """Draw a larger, narrow finger-selectable palette on the left."""
+    button_width = 86
+    button_height = 64
+    gap = 7
     for index, tool in enumerate(TOOLBAR):
-        x = index * (button_width + gap)
+        x = 10
+        y = 10 + index * (button_height + gap)
         if tool == "E":
             button_color = (70, 70, 70)
             label = "ERASE"
@@ -46,12 +48,11 @@ def draw_toolbar(image, selected_tool, hover_tool):
             button_color, label = COLORS[tool]
         thickness = 3 if tool == selected_tool else 1
         border = (255, 255, 255) if tool == hover_tool else button_color
-        cv2.rectangle(image, (x, 8), (x + button_width, 62), border, thickness)
-        cv2.rectangle(image, (x + 5, 13), (x + button_width - 5, 48), button_color, -1)
-        cv2.putText(image, label[0], (x + 21, 40),
+        cv2.rectangle(image, (x, y), (x + button_width, y + button_height), border, thickness)
+        cv2.rectangle(image, (x + 6, y + 6),
+                      (x + button_width - 6, y + button_height - 6), button_color, -1)
+        cv2.putText(image, label[0], (x + 32, y + 44),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-    cv2.putText(image, "POINT + HOLD TO SELECT", (400, 42),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (235, 235, 235), 1)
 
 
 def draw_music_visualizer(image, energy, phase):
@@ -153,25 +154,27 @@ def main():
                     int(0.65 * smooth_point[1] + 0.35 * raw_point[1]),
                 )
 
-                if drawing_pose(hand):
-                    tool_under_finger = toolbar_hit(smooth_point)
-                    if tool_under_finger is not None:
-                        mode = f"SELECT {tool_under_finger}"
-                        previous_point = None
-                        last_action = None
-                        if tool_under_finger == hover_tool:
-                            hover_frames += 1
+                tool_under_finger = toolbar_hit(smooth_point)
+                if tool_under_finger is not None:
+                    mode = f"SELECT {tool_under_finger} {min(hover_frames, 5)}/5"
+                    previous_point = None
+                    last_action = None
+                    if tool_under_finger == hover_tool:
+                        hover_frames += 1
+                    else:
+                        hover_tool = tool_under_finger
+                        hover_frames = 1
+                    if hover_frames >= 5:
+                        selected_tool = tool_under_finger
+                        if selected_tool == "E":
+                            manual_eraser = True
                         else:
-                            hover_tool = tool_under_finger
-                            hover_frames = 1
-                        if hover_frames >= 8:
-                            selected_tool = tool_under_finger
-                            if selected_tool == "E":
-                                manual_eraser = True
-                            else:
-                                manual_eraser = False
-                                color, color_name = COLORS[selected_tool]
-                    elif manual_eraser:
+                            manual_eraser = False
+                            color, color_name = COLORS[selected_tool]
+                elif drawing_pose(hand):
+                    hover_tool = None
+                    hover_frames = 0
+                    if manual_eraser:
                         mode = "ERASER"
                         if last_action != "ERASER":
                             history.append(canvas.copy())
@@ -182,8 +185,6 @@ def main():
                         cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
                         previous_point = None
                     else:
-                        hover_tool = None
-                        hover_frames = 0
                         mode = "DRAWING"
                         if last_action != "DRAWING":
                             history.append(canvas.copy())
