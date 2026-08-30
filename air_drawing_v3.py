@@ -17,6 +17,42 @@ COLORS = {
     "Y": ((0, 255, 255), "YELLOW"),
 }
 
+TOOLBAR = ["R", "B", "G", "Y", "P", "E"]
+
+
+def toolbar_hit(point):
+    """Return the toolbar tool under a point, or None."""
+    if point is None or point[1] > 70:
+        return None
+    button_width = 58
+    gap = 6
+    index = point[0] // (button_width + gap)
+    within_button = point[0] % (button_width + gap) < button_width
+    if within_button and 0 <= index < len(TOOLBAR):
+        return TOOLBAR[index]
+    return None
+
+
+def draw_toolbar(image, selected_tool, hover_tool):
+    """Draw a compact finger-selectable toolbar at the top of the screen."""
+    button_width = 58
+    gap = 6
+    for index, tool in enumerate(TOOLBAR):
+        x = index * (button_width + gap)
+        if tool == "E":
+            button_color = (70, 70, 70)
+            label = "ERASE"
+        else:
+            button_color, label = COLORS[tool]
+        thickness = 3 if tool == selected_tool else 1
+        border = (255, 255, 255) if tool == hover_tool else button_color
+        cv2.rectangle(image, (x, 8), (x + button_width, 62), border, thickness)
+        cv2.rectangle(image, (x + 5, 13), (x + button_width - 5, 48), button_color, -1)
+        cv2.putText(image, label[0], (x + 21, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    cv2.putText(image, "POINT + HOLD TO SELECT", (400, 42),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (235, 235, 235), 1)
+
 
 def draw_music_visualizer(image, energy, phase):
     """Draw a lightweight music-energy visualization driven by hand movement."""
@@ -69,6 +105,9 @@ def main():
     color = COLORS["P"][0]
     color_name = COLORS["P"][1]
     manual_eraser = False
+    selected_tool = "P"
+    hover_tool = None
+    hover_frames = 0
     history = []
     max_history = 20
     last_action = None
@@ -114,35 +153,63 @@ def main():
                     int(0.65 * smooth_point[1] + 0.35 * raw_point[1]),
                 )
 
-                if manual_eraser:
-                    mode = "ERASER"
-                    if last_action != "ERASER":
-                        history.append(canvas.copy())
-                        history = history[-max_history:]
-                    last_action = "ERASER"
-                    palm = hand.landmark[points.MIDDLE_FINGER_MCP]
-                    eraser_point = (int(palm.x * width), int(palm.y * height))
-                    cv2.circle(frame, eraser_point, 35, (255, 255, 255), 2)
-                    cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
+                if drawing_pose(hand):
+                    tool_under_finger = toolbar_hit(smooth_point)
+                    if tool_under_finger is not None:
+                        mode = f"SELECT {tool_under_finger}"
+                        previous_point = None
+                        last_action = None
+                        if tool_under_finger == hover_tool:
+                            hover_frames += 1
+                        else:
+                            hover_tool = tool_under_finger
+                            hover_frames = 1
+                        if hover_frames >= 8:
+                            selected_tool = tool_under_finger
+                            if selected_tool == "E":
+                                manual_eraser = True
+                            else:
+                                manual_eraser = False
+                                color, color_name = COLORS[selected_tool]
+                    elif manual_eraser:
+                        mode = "ERASER"
+                        if last_action != "ERASER":
+                            history.append(canvas.copy())
+                            history = history[-max_history:]
+                        last_action = "ERASER"
+                        eraser_point = smooth_point
+                        cv2.circle(frame, eraser_point, 35, (255, 255, 255), 2)
+                        cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
+                        previous_point = None
+                    else:
+                        hover_tool = None
+                        hover_frames = 0
+                        mode = "DRAWING"
+                        if last_action != "DRAWING":
+                            history.append(canvas.copy())
+                            history = history[-max_history:]
+                        last_action = "DRAWING"
+                        current_point = smooth_point
+                        cv2.circle(frame, current_point, 10, (0, 255, 0), -1)
+                        if previous_point is not None:
+                            distance_moved = math.hypot(
+                                current_point[0] - previous_point[0],
+                                current_point[1] - previous_point[1],
+                            )
+                            movement_energy = min(
+                                1.0, 0.8 * movement_energy + 0.2 * distance_moved / 35.0
+                            )
+                        if previous_point is not None:
+                            cv2.line(canvas, previous_point, current_point, color, 7)
+                elif manual_eraser:
+                    mode = "READY - POINT TO ERASE"
                     previous_point = None
-                elif drawing_pose(hand):
-                    mode = "DRAWING"
-                    if last_action != "DRAWING":
-                        history.append(canvas.copy())
-                        history = history[-max_history:]
-                    last_action = "DRAWING"
-                    current_point = smooth_point
-                    cv2.circle(frame, current_point, 10, (0, 255, 0), -1)
-                    if previous_point is not None:
-                        distance_moved = math.hypot(
-                            current_point[0] - previous_point[0],
-                            current_point[1] - previous_point[1],
-                        )
-                        movement_energy = min(
-                            1.0, 0.8 * movement_energy + 0.2 * distance_moved / 35.0
-                        )
-                        cv2.line(canvas, previous_point, current_point, color, 7)
+                    last_action = None
+                    hover_tool = None
+                    hover_frames = 0
                 else:
+                    hover_tool = None
+                    hover_frames = 0
                     mode = "READY"
                     previous_point = None
                     last_action = None
@@ -150,6 +217,8 @@ def main():
                 previous_point = None
                 last_action = None
                 mode = "NO HAND"
+                hover_tool = None
+                hover_frames = 0
                 movement_energy *= 0.9
 
             # Remember the fingertip so the next frame can connect a line.
@@ -169,6 +238,7 @@ def main():
             core_blended = cv2.addWeighted(display, 0.25, canvas, 0.95, 0)
             display[mask] = core_blended[mask]
             draw_music_visualizer(display, movement_energy, visualizer_phase)
+            draw_toolbar(display, selected_tool, hover_tool)
             height, width = display.shape[:2]
             if show_help:
                 panel_height = 150
@@ -196,16 +266,22 @@ def main():
             key = cv2.waitKey(1) & 0xFF
             if key == ord("b"):
                 color, color_name = COLORS["B"]
+                selected_tool, manual_eraser = "B", False
             elif key == ord("g"):
                 color, color_name = COLORS["G"]
+                selected_tool, manual_eraser = "G", False
             elif key == ord("r"):
                 color, color_name = COLORS["R"]
+                selected_tool, manual_eraser = "R", False
             elif key == ord("y"):
                 color, color_name = COLORS["Y"]
+                selected_tool, manual_eraser = "Y", False
             elif key == ord("p"):
                 color, color_name = COLORS["P"]
+                selected_tool, manual_eraser = "P", False
             elif key == ord("e"):
                 manual_eraser = not manual_eraser
+                selected_tool = "E" if manual_eraser else selected_tool
                 previous_point = None
                 last_action = None
             elif key == ord("h"):
