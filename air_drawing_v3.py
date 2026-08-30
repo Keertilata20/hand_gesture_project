@@ -1,10 +1,11 @@
 import math
-import os
 from datetime import datetime
 
 import cv2
 import mediapipe as mp
 import numpy as np
+
+from camera_helper import open_camera
 
 
 COLORS = {
@@ -18,35 +19,36 @@ COLORS = {
 
 def raised_fingers(hand):
     points = mp.solutions.hands.HandLandmark
-    wrist = hand.landmark[points.WRIST]
 
     def distance(a, b):
         return math.hypot(a.x - b.x, a.y - b.y)
 
     pairs = [
-        (points.INDEX_FINGER_TIP, points.INDEX_FINGER_PIP),
-        (points.MIDDLE_FINGER_TIP, points.MIDDLE_FINGER_PIP),
-        (points.RING_FINGER_TIP, points.RING_FINGER_PIP),
-        (points.PINKY_TIP, points.PINKY_PIP),
+        (points.INDEX_FINGER_TIP, points.INDEX_FINGER_PIP, points.INDEX_FINGER_MCP),
+        (points.MIDDLE_FINGER_TIP, points.MIDDLE_FINGER_PIP, points.MIDDLE_FINGER_MCP),
+        (points.RING_FINGER_TIP, points.RING_FINGER_PIP, points.RING_FINGER_MCP),
+        (points.PINKY_TIP, points.PINKY_PIP, points.PINKY_MCP),
     ]
     return sum(
-        distance(hand.landmark[tip], wrist)
-        > distance(hand.landmark[pip], wrist) * 1.10
-        for tip, pip in pairs
+        distance(hand.landmark[tip], hand.landmark[mcp])
+        > distance(hand.landmark[pip], hand.landmark[mcp]) * 1.15
+        for tip, pip, mcp in pairs
     )
 
 
 def main():
-    camera = (cv2.VideoCapture(0, cv2.CAP_DSHOW)
-              if os.name == "nt" else cv2.VideoCapture(0))
-    if not camera.isOpened():
-        raise RuntimeError("Could not open webcam. Try changing 0 to 1 in VideoCapture.")
+    camera, backend = open_camera(0)
+    if camera is None:
+        raise RuntimeError("Could not open webcam. Try changing 0 to 1 or check camera permissions.")
+    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     hands = mp.solutions.hands.Hands(
         static_image_mode=False,
         max_num_hands=1,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
+        model_complexity=1,
+        min_detection_confidence=0.45,
+        min_tracking_confidence=0.45,
     )
     drawer = mp.solutions.drawing_utils
     canvas = None
@@ -61,13 +63,16 @@ def main():
     history = []
     max_history = 20
     last_action = None
+    show_help = False
     window_name = "Air drawing V3 - gesture eraser"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     print("Air drawing V3 started.")
     print("Index only: draw | 2/3/4 fingers: choose blue/green/yellow")
     print("Closed fist held briefly: erase | E: toggle eraser")
-    print("B/G/R/Y/P: colors | U: undo | S: save | C: clear | Q: quit")
+    print("B/G/R/Y/P: colors | U: undo | S: save | C: clear | H: help | Q: quit")
+    print(f"Camera backend: {backend}")
 
     try:
         while True:
@@ -110,8 +115,8 @@ def main():
                 height, width = frame.shape[:2]
                 raw_point = (int(index_tip.x * width), int(index_tip.y * height))
                 smooth_point = raw_point if smooth_point is None else (
-                    int(0.85 * smooth_point[0] + 0.15 * raw_point[0]),
-                    int(0.85 * smooth_point[1] + 0.15 * raw_point[1]),
+                    int(0.65 * smooth_point[0] + 0.35 * raw_point[0]),
+                    int(0.65 * smooth_point[1] + 0.35 * raw_point[1]),
                 )
 
                 # A closed fist held briefly activates the gesture eraser.
@@ -156,6 +161,7 @@ def main():
             else:
                 previous_point = None
                 last_action = None
+                mode = "NO HAND"
 
             # Remember the fingertip so the next frame can connect a line.
             if current_point is not None:
@@ -165,18 +171,28 @@ def main():
             mask = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY) > 0
             blended = cv2.addWeighted(frame, 0.35, canvas, 0.65, 0)
             display[mask] = blended[mask]
-            cv2.rectangle(display, (0, 0), (520, 155), (35, 35, 35), -1)
-            cv2.putText(display, f"{mode} | COLOR: {color_name}", (15, 35),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
-            controls = [
-                "INDEX: DRAW    2/3/4: COLOR",
-                "FIST: ERASE    E: ERASE TOGGLE",
-                "B/G/R/Y/P: COLOR   U: UNDO",
-                "S: SAVE   C: CLEAR   Q: QUIT",
-            ]
-            for row, text in enumerate(controls, start=1):
-                cv2.putText(display, text, (15, 35 + row * 27),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1)
+            height, width = display.shape[:2]
+            if show_help:
+                panel_height = 150
+                overlay = display.copy()
+                cv2.rectangle(overlay, (0, height - panel_height),
+                              (min(width, 650), height), (35, 35, 35), -1)
+                display = cv2.addWeighted(overlay, 0.82, display, 0.18, 0)
+                controls = [
+                    "INDEX: DRAW    2/3/4: COLOR",
+                    "FIST: ERASE    E: ERASE TOGGLE",
+                    "B/G/R/Y/P: COLOR   U: UNDO",
+                    "S: SAVE   C: CLEAR   H: HIDE HELP   Q: QUIT",
+                ]
+                for row, help_text in enumerate(controls):
+                    cv2.putText(display, help_text, (15, height - 120 + row * 27),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1)
+            else:
+                status = f"{mode} | {color_name} | H: HELP | Q: QUIT"
+                cv2.rectangle(display, (0, height - 34), (min(width, 430), height),
+                              (25, 25, 25), -1)
+                cv2.putText(display, status, (10, height - 11),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 1)
             cv2.imshow(window_name, display)
 
             key = cv2.waitKey(1) & 0xFF
@@ -194,6 +210,8 @@ def main():
                 manual_eraser = not manual_eraser
                 previous_point = None
                 last_action = None
+            elif key == ord("h"):
+                show_help = not show_help
             elif key == ord("u"):
                 if history:
                     canvas[:] = history.pop()

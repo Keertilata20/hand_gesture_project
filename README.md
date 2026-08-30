@@ -56,6 +56,7 @@ V3 controls:
 - `U` — undo the last drawing, erasing, or clear action
 - `S` — save the drawing as a PNG in the project folder
 - `C` — clear the canvas
+- `H` — show or hide the help panel
 - `Q` — quit
 
 The V3 application is the recommended version for demonstrations and daily use.
@@ -116,7 +117,7 @@ Run the latest version with gesture erasing, undo, and saving:
 python air_drawing_v3.py
 ```
 
-Press `Q` while the camera window is focused to exit.
+V3 opens fullscreen to maximize the drawing area. Press `H` to show or hide the help panel, and press `Q` while the camera view is focused to exit.
 
 ## Troubleshooting
 
@@ -138,6 +139,8 @@ Try the following:
 - Keep your hand 40–70 cm from the camera
 - Use a clear, uncluttered background
 - Keep your hand inside the visible camera frame
+- Move the hand closer until it fills a reasonable part of the camera view
+- Use the V3 status bar to confirm that the camera is running and the hand is detected
 
 ### MediaPipe installation problems
 
