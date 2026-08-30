@@ -44,17 +44,49 @@ def raised_fingers(hand):
     def distance(a, b):
         return math.hypot(a.x - b.x, a.y - b.y)
 
+    def angle(a, b, c):
+        """Return the angle ABC in degrees."""
+        ba = (a.x - b.x, a.y - b.y)
+        bc = (c.x - b.x, c.y - b.y)
+        denominator = math.hypot(*ba) * math.hypot(*bc)
+        if denominator == 0:
+            return 0.0
+        cosine = max(-1.0, min(1.0, (ba[0] * bc[0] + ba[1] * bc[1]) / denominator))
+        return math.degrees(math.acos(cosine))
+
     pairs = [
         (points.INDEX_FINGER_TIP, points.INDEX_FINGER_PIP, points.INDEX_FINGER_MCP),
         (points.MIDDLE_FINGER_TIP, points.MIDDLE_FINGER_PIP, points.MIDDLE_FINGER_MCP),
         (points.RING_FINGER_TIP, points.RING_FINGER_PIP, points.RING_FINGER_MCP),
         (points.PINKY_TIP, points.PINKY_PIP, points.PINKY_MCP),
     ]
-    return sum(
-        distance(hand.landmark[tip], hand.landmark[mcp])
-        > distance(hand.landmark[pip], hand.landmark[mcp]) * 1.15
-        for tip, pip, mcp in pairs
-    )
+    states = []
+    for tip, pip, mcp in pairs:
+        tip_point = hand.landmark[tip]
+        pip_point = hand.landmark[pip]
+        mcp_point = hand.landmark[mcp]
+        straight = angle(mcp_point, pip_point, tip_point) > 145
+        extended = distance(tip_point, mcp_point) > distance(pip_point, mcp_point) * 1.05
+        states.append(straight and extended)
+    return sum(states)
+
+
+def drawing_pose(hand):
+    """Detect index-up/middle-down without depending on the other fingers."""
+    points = mp.solutions.hands.HandLandmark
+
+    def distance(a, b):
+        return math.hypot(a.x - b.x, a.y - b.y)
+
+    def is_extended(tip, pip, mcp):
+        return distance(hand.landmark[tip], hand.landmark[mcp]) > \
+            distance(hand.landmark[pip], hand.landmark[mcp]) * 1.05
+
+    index_up = is_extended(points.INDEX_FINGER_TIP, points.INDEX_FINGER_PIP,
+                           points.INDEX_FINGER_MCP)
+    middle_down = not is_extended(points.MIDDLE_FINGER_TIP, points.MIDDLE_FINGER_PIP,
+                                  points.MIDDLE_FINGER_MCP)
+    return index_up and middle_down
 
 
 def main():
@@ -116,11 +148,13 @@ def main():
             result = hands.process(rgb)
             current_point = None
             mode = "READY"
+            finger_count = None
 
             if result.multi_hand_landmarks:
                 hand = result.multi_hand_landmarks[0]
                 drawer.draw_landmarks(frame, hand, mp.solutions.hands.HAND_CONNECTIONS)
                 count = raised_fingers(hand)
+                finger_count = count
 
                 if count == candidate_count:
                     candidate_frames += 1
@@ -170,7 +204,7 @@ def main():
                     mode = f"HOLD FIST {fist_frames}/8"
                     previous_point = None
                     last_action = None
-                elif count == 1:
+                elif drawing_pose(hand):
                     mode = "DRAWING"
                     if last_action != "DRAWING":
                         history.append(canvas.copy())
@@ -231,7 +265,8 @@ def main():
                     cv2.putText(display, help_text, (15, height - 120 + row * 27),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (230, 230, 230), 1)
             else:
-                status = f"{mode} | {color_name} | ENERGY {int(movement_energy * 100):02d}% | H: HELP | Q: QUIT"
+                detected = "NO HAND" if finger_count is None else f"{finger_count} FINGERS"
+                status = f"{mode} | {detected} | {color_name} | ENERGY {int(movement_energy * 100):02d}% | H: HELP | Q: QUIT"
                 cv2.rectangle(display, (0, height - 34), (min(width, 430), height),
                               (25, 25, 25), -1)
                 cv2.putText(display, status, (10, height - 11),
