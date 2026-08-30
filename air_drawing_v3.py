@@ -18,18 +18,6 @@ COLORS = {
 }
 
 
-def enhance_frame(frame):
-    """Lift shadows and add modest sharpening for difficult webcam images."""
-    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-    lightness, a_channel, b_channel = cv2.split(lab)
-    lightness = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(lightness)
-    enhanced = cv2.cvtColor(
-        cv2.merge((lightness, a_channel, b_channel)), cv2.COLOR_LAB2BGR
-    )
-    softened = cv2.GaussianBlur(enhanced, (0, 0), 2.0)
-    return cv2.addWeighted(enhanced, 1.2, softened, -0.2, 0)
-
-
 def draw_music_visualizer(image, energy, phase):
     """Draw a lightweight music-energy visualization driven by hand movement."""
     height, width = image.shape[:2]
@@ -118,7 +106,7 @@ def main():
             if not ok:
                 break
 
-            frame = enhance_frame(cv2.flip(frame, 1))
+            frame = cv2.flip(frame, 1)
             if canvas is None:
                 canvas = np.zeros_like(frame)
                 height, width = frame.shape[:2]
