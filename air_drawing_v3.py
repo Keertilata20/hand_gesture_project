@@ -83,6 +83,21 @@ def drawing_pose(hand):
     return index_up and middle_down
 
 
+def pinching(hand):
+    """Return True when the index fingertip and thumb are close together."""
+    points = mp.solutions.hands.HandLandmark
+
+    def distance(a, b):
+        return math.hypot(a.x - b.x, a.y - b.y)
+
+    thumb_tip = hand.landmark[points.THUMB_TIP]
+    index_tip = hand.landmark[points.INDEX_FINGER_TIP]
+    wrist = hand.landmark[points.WRIST]
+    middle_mcp = hand.landmark[points.MIDDLE_FINGER_MCP]
+    palm_size = distance(wrist, middle_mcp)
+    return palm_size > 0 and distance(thumb_tip, index_tip) < palm_size * 0.42
+
+
 def main():
     camera, backend = open_camera(0)
     if camera is None:
@@ -109,6 +124,7 @@ def main():
     selected_tool = "P"
     hover_tool = None
     hover_frames = 0
+    free_draw = False
     history = []
     max_history = 20
     last_action = None
@@ -121,8 +137,9 @@ def main():
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     print("Air drawing V3 started.")
-    print("Index up + middle folded: draw | E: toggle eraser")
-    print("B/G/R/Y/P: choose color | U: undo | S: save | C: clear | H: help | Q: quit")
+    print("Index up + middle folded, then pinch: draw | E: toggle eraser")
+    print("D: toggle free draw | B/G/R/Y/P: choose color | U: undo")
+    print("S: save | C: clear | H: help | Q: quit")
     print(f"Camera backend: {backend}")
 
     try:
@@ -174,7 +191,11 @@ def main():
                 elif drawing_pose(hand):
                     hover_tool = None
                     hover_frames = 0
-                    if manual_eraser:
+                    pinch = pinching(hand)
+                    cursor_color = (0, 255, 0) if pinch else (255, 255, 255)
+                    cv2.circle(frame, smooth_point, 12, cursor_color, 2)
+                    can_draw = pinch or free_draw
+                    if manual_eraser and can_draw:
                         mode = "ERASER"
                         if last_action != "ERASER":
                             history.append(canvas.copy())
@@ -184,7 +205,7 @@ def main():
                         cv2.circle(frame, eraser_point, 35, (255, 255, 255), 2)
                         cv2.circle(canvas, eraser_point, 35, (0, 0, 0), -1)
                         previous_point = None
-                    else:
+                    elif can_draw:
                         mode = "DRAWING"
                         if last_action != "DRAWING":
                             history.append(canvas.copy())
@@ -202,6 +223,10 @@ def main():
                             )
                         if previous_point is not None:
                             cv2.line(canvas, previous_point, current_point, color, 7)
+                    else:
+                        mode = "PINCH TO DRAW"
+                        previous_point = None
+                        last_action = None
                 elif manual_eraser:
                     mode = "READY - POINT TO ERASE"
                     previous_point = None
@@ -248,8 +273,8 @@ def main():
                               (min(width, 650), height), (35, 35, 35), -1)
                 display = cv2.addWeighted(overlay, 0.82, display, 0.18, 0)
                 controls = [
-                    "INDEX UP + MIDDLE FOLDED: DRAW",
-                    "E: ERASE TOGGLE",
+                    "INDEX UP + MIDDLE FOLDED, PINCH: DRAW",
+                    "E: ERASE TOGGLE   D: FREE DRAW TOGGLE",
                     "B/G/R/Y/P: COLOR   U: UNDO",
                     "S: SAVE   C: CLEAR   H: HIDE HELP   Q: QUIT",
                 ]
@@ -283,6 +308,10 @@ def main():
             elif key == ord("e"):
                 manual_eraser = not manual_eraser
                 selected_tool = "E" if manual_eraser else selected_tool
+                previous_point = None
+                last_action = None
+            elif key == ord("d"):
+                free_draw = not free_draw
                 previous_point = None
                 last_action = None
             elif key == ord("h"):

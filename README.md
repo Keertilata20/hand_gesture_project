@@ -48,10 +48,11 @@ Legacy V2 controls:
 
 V3 controls:
 
-- Index finger up with middle finger folded — draw
+- Index finger up with middle finger folded, then pinch index finger and thumb — draw
 - Point at a color or eraser button in the left-side palette and hold for about half a second to select it
 - Keyboard color selection remains available when tracking is weak
 - `E` — toggle manual eraser
+- `D` — toggle free-draw mode when pinching is difficult
 - `B` / `G` / `R` / `Y` / `P` — select blue / green / red / yellow / purple
 - `U` — undo the last drawing, erasing, or clear action
 - `S` — save the drawing as a PNG in the project folder
