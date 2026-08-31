@@ -12,8 +12,8 @@ This project began as a simple webcam hand-tracking experiment and is being deve
 - Air drawing on a persistent canvas
 - Smoothed fingertip movement for more stable lines
 - Gesture-based color selection
-- Gesture-based erasing
 - Neon air-graffiti trails
+- Gesture-based erasing
 - Movement-driven music-energy visualization
 - Keyboard color-selection fallbacks
 - Canvas clearing, saving, undo, and clean shutdown controls
