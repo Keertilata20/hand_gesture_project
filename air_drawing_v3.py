@@ -142,11 +142,10 @@ def draw_music_visualizer(image, energy, phase):
 
 
 def drawing_pose(hand):
-    """Detect the simple, reliable drawing pose: index up, middle down."""
+    """Detect an index-pointing pose without requiring other fingers to be perfect."""
     points = mp.solutions.hands.HandLandmark
     index_up = hand.landmark[points.INDEX_FINGER_TIP].y < hand.landmark[points.INDEX_FINGER_PIP].y
-    middle_down = hand.landmark[points.MIDDLE_FINGER_TIP].y > hand.landmark[points.MIDDLE_FINGER_PIP].y
-    return index_up and middle_down
+    return index_up
 
 
 def pinching(hand):
@@ -161,7 +160,7 @@ def pinching(hand):
     wrist = hand.landmark[points.WRIST]
     middle_mcp = hand.landmark[points.MIDDLE_FINGER_MCP]
     palm_size = distance(wrist, middle_mcp)
-    return palm_size > 0 and distance(thumb_tip, index_tip) < palm_size * 0.42
+    return palm_size > 0 and distance(thumb_tip, index_tip) < palm_size * 0.55
 
 
 def main():
@@ -172,12 +171,12 @@ def main():
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     hands = mp.solutions.hands.Hands(
-        # Re-detect every frame instead of relying on tracking between frames.
-        # This is more tolerant of a soft or unstable webcam feed.
-        static_image_mode=True,
+        # Track the hand between detections so brief camera blur does not
+        # immediately interrupt a stroke.
+        static_image_mode=False,
         max_num_hands=1,
         model_complexity=1,
-        min_detection_confidence=0.25,
+        min_detection_confidence=0.30,
         min_tracking_confidence=0.25,
     )
     drawer = mp.solutions.drawing_utils
@@ -205,7 +204,7 @@ def main():
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     print("Air drawing V3 started.")
-    print("Index up + middle folded, then pinch: draw | E: toggle eraser")
+    print("Point with index finger, then pinch: draw | E: toggle eraser")
     print("D: toggle free draw | M: mute music | B/G/R/Y/P: choose color")
     print("U: undo | S: save | C: clear | H: help | Q: quit")
     print(f"Camera backend: {backend}")
@@ -348,7 +347,7 @@ def main():
                               (min(width, 650), height), (35, 35, 35), -1)
                 display = cv2.addWeighted(overlay, 0.82, display, 0.18, 0)
                 controls = [
-                    "INDEX UP + MIDDLE FOLDED, PINCH: DRAW",
+                    "POINT WITH INDEX + PINCH: DRAW",
                     "E: ERASE TOGGLE   D: FREE DRAW TOGGLE",
                     "B/G/R/Y/P: COLOR   M: MUTE MUSIC   U: UNDO",
                     "S: SAVE   C: CLEAR   H: HIDE HELP   Q: QUIT",
