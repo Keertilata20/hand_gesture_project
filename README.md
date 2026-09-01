@@ -53,6 +53,8 @@ V3 controls:
 - Keyboard color selection remains available when tracking is weak
 - `E` — toggle manual eraser
 - `D` — toggle free-draw mode when pinching is difficult
+- Hand height changes the musical note and movement energy changes volume
+- `M` — mute or unmute music
 - `B` / `G` / `R` / `Y` / `P` — select blue / green / red / yellow / purple
 - `U` — undo the last drawing, erasing, or clear action
 - `S` — save the drawing as a PNG in the project folder

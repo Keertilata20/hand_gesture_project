@@ -5,6 +5,10 @@ import time
 import cv2
 import mediapipe as mp
 import numpy as np
+try:
+    import sounddevice as sd
+except ImportError:
+    sd = None
 
 from camera_helper import open_camera
 
@@ -18,6 +22,66 @@ COLORS = {
 }
 
 TOOLBAR = ["R", "B", "G", "Y", "P", "E"]
+
+
+class MusicEngine:
+    """Small optional synth: hand height selects notes, movement controls volume."""
+
+    SCALE = np.array([220.00, 246.94, 261.63, 293.66, 329.63, 369.99, 440.00])
+
+    def __init__(self):
+        self.stream = None
+        self.phase = 0.0
+        self.frequency = self.SCALE[2]
+        self.volume = 0.0
+        self.muted = False
+
+    def start(self):
+        if sd is None:
+            print("Audio disabled: install sounddevice to enable music.")
+            return
+        try:
+            self.stream = sd.OutputStream(
+                samplerate=44100,
+                blocksize=512,
+                channels=1,
+                dtype="float32",
+                callback=self._callback,
+            )
+            self.stream.start()
+            print("Music enabled. Press M to mute/unmute.")
+        except Exception as error:
+            self.stream = None
+            print(f"Audio unavailable; continuing without music: {error}")
+
+    def update(self, energy, hand_y, hand_detected):
+        if not hand_detected:
+            self.volume *= 0.88
+            return
+        note_index = int(np.clip((1.0 - hand_y) * len(self.SCALE), 0, len(self.SCALE) - 1))
+        self.frequency = float(self.SCALE[note_index])
+        target_volume = 0.045 + energy * 0.16
+        self.volume = 0.85 * self.volume + 0.15 * target_volume
+
+    def toggle_mute(self):
+        self.muted = not self.muted
+        print("Music muted." if self.muted else "Music unmuted.")
+
+    def _callback(self, output, frames, _time, _status):
+        if self.muted:
+            output.fill(0)
+            return
+        phase_step = 2.0 * math.pi * self.frequency / 44100.0
+        phases = self.phase + phase_step * np.arange(frames)
+        wave = np.sin(phases) + 0.18 * np.sin(phases * 2.0)
+        output[:, 0] = (wave * self.volume).astype(np.float32)
+        self.phase = float((self.phase + phase_step * frames) % (2.0 * math.pi))
+
+    def stop(self):
+        if self.stream is not None:
+            self.stream.stop()
+            self.stream.close()
+            self.stream = None
 
 
 def toolbar_hit(point):
@@ -132,14 +196,16 @@ def main():
     movement_energy = 0.0
     visualizer_phase = 0.0
     last_tick = time.monotonic()
+    music = MusicEngine()
+    music.start()
     window_name = "Air drawing V3 - gesture eraser"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     print("Air drawing V3 started.")
     print("Index up + middle folded, then pinch: draw | E: toggle eraser")
-    print("D: toggle free draw | B/G/R/Y/P: choose color | U: undo")
-    print("S: save | C: clear | H: help | Q: quit")
+    print("D: toggle free draw | M: mute music | B/G/R/Y/P: choose color")
+    print("U: undo | S: save | C: clear | H: help | Q: quit")
     print(f"Camera backend: {backend}")
 
     try:
@@ -247,6 +313,13 @@ def main():
                 hover_frames = 0
                 movement_energy *= 0.9
 
+            hand_y = smooth_point[1] / height if smooth_point is not None else 0.5
+            music.update(
+                movement_energy,
+                hand_y,
+                result.multi_hand_landmarks is not None,
+            )
+
             # Remember the fingertip so the next frame can connect a line.
             if current_point is not None:
                 previous_point = current_point
@@ -275,7 +348,7 @@ def main():
                 controls = [
                     "INDEX UP + MIDDLE FOLDED, PINCH: DRAW",
                     "E: ERASE TOGGLE   D: FREE DRAW TOGGLE",
-                    "B/G/R/Y/P: COLOR   U: UNDO",
+                    "B/G/R/Y/P: COLOR   M: MUTE MUSIC   U: UNDO",
                     "S: SAVE   C: CLEAR   H: HIDE HELP   Q: QUIT",
                 ]
                 for row, help_text in enumerate(controls):
@@ -314,6 +387,8 @@ def main():
                 free_draw = not free_draw
                 previous_point = None
                 last_action = None
+            elif key == ord("m"):
+                music.toggle_mute()
             elif key == ord("h"):
                 show_help = not show_help
             elif key == ord("u"):
@@ -340,6 +415,7 @@ def main():
     finally:
         camera.release()
         hands.close()
+        music.stop()
         cv2.destroyAllWindows()
 
 
