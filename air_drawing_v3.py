@@ -56,11 +56,13 @@ class MusicEngine:
 
     def update(self, energy, hand_y, hand_detected):
         if not hand_detected:
-            self.volume *= 0.88
+            # Keep a quiet musical bed during brief detection dropouts.
+            self.volume = 0.98 * self.volume + 0.02 * 0.08
             return
         note_index = int(np.clip((1.0 - hand_y) * len(self.SCALE), 0, len(self.SCALE) - 1))
         self.frequency = float(self.SCALE[note_index])
-        target_volume = 0.045 + energy * 0.16
+        # Keep the music audible even when drawing movement is gentle.
+        target_volume = 0.12 + energy * 0.18
         self.volume = 0.85 * self.volume + 0.15 * target_volume
 
     def toggle_mute(self):
